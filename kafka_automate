@@ -1,0 +1,172 @@
+#!/bin/bash
+
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 [option]"
+    echo "Options:"
+    echo "  --ctop       Create a new topic"
+    echo "  --ltop       List topics"
+    echo "  --dtop       Delete a topic"
+    echo "  --prod       Message producer"
+    echo "  --cons       Message consumer"
+    exit 1
+fi
+
+if [ "$1" == "--help" ]; then
+    echo "Usage: $0 [option]"
+    echo "Options:"
+    echo "  --ctop       Create a new topic"
+    echo "  --ltop       List topics"
+    echo "  --dtop       Delete a topic"
+    echo "  --prod       Message producer"
+    echo "  --cons       Message consumer"
+    exit 0
+fi
+
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+WHITE='\033[0;37m'
+RESET='\033[0m'
+
+DEFAULT_PORT=9092
+
+print_color() {
+    printf "\e[1;36m%s\e[0m\n" "$1"
+}
+
+separator_with_title() {
+    local label=$1
+    local color=$2
+    local title=$(echo "$label" | sed 's/ //g')
+    local width=$(( $(tput cols) - ${#title} - 1 ))
+    printf "\e[3;${color}m%s\e[0m %*s\n" "$title" $width | tr ' ' '-'
+}
+
+separator() {
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+}
+
+blank_line() {
+    echo ""
+}
+
+enter_value() {
+    local label=$1
+    local default=$2
+    local var_name=$3
+    separator_with_title "$label" 36
+    if [[ $var_name != "TOPIC_NAME" && $var_name != "GROUP_NAME" ]]; then
+        read -e -p "$(echo -e "↳ ${CYAN}$label ${WHITE}(default is \033[1;31m$default${RESET}) : ${RESET}")" $var_name
+        if [ -z "${!var_name}" ]; then
+            eval "$var_name=$default"
+        fi
+    else
+        read -e -p "$(echo -e "↳ ${CYAN}$label : ${RESET}")" $var_name
+        if [ -z "${!var_name}" ]; then
+            echo -e "${RED}Error: Topic name cannot be empty!${RESET}"
+            exit 1
+        fi
+    fi
+    blank_line
+}
+
+process_name() {
+    print_color "< $1 >"
+    blank_line
+}
+
+processor() {
+    local arg=$1
+
+    case $arg in
+        "--ctop")
+            process_name "Create a New Topic"
+            enter_value "Host" "$HOST_NODE" "HOST"
+            enter_value "Port" "$DEFAULT_PORT" "PORT"
+            enter_value "Topic Name" "" "TOPIC_NAME"
+            echo -e "↳ ${CYAN}Output${RESET} ↴"
+            kafka-topics.sh --bootstrap-server "$HOST:$PORT" --create --topic "$TOPIC_NAME"
+            ;;
+        "--ltop")
+            process_name "List of Topics"
+            enter_value "Host" "$HOST_NODE" "HOST"
+            enter_value "Port" "$DEFAULT_PORT" "PORT"
+            echo -e "↳ ${CYAN}Topic List${RESET} ↴"
+            kafka-topics.sh --bootstrap-server "$HOST:$PORT" --list
+            ;;
+        "--dtop")
+            process_name "Delete a Topic"
+            enter_value "Host" "$HOST_NODE" "HOST"
+            enter_value "Port" "$DEFAULT_PORT" "PORT"
+            enter_value "Topic Name" "" "TOPIC_NAME"
+            echo -e "↳ ${CYAN}Output${RESET} ↴"
+            output=$(kafka-topics.sh --bootstrap-server "$HOST:$PORT" --delete --topic "$TOPIC_NAME")
+            if [ $? -eq 0 ]; then
+                echo "Successfully deleted topic $TOPIC_NAME"
+            else
+                echo "$output"
+            fi
+            ;;
+        "--lcg")
+            process_name "List of Consumer Group"
+            enter_value "Host" "$HOST_NODE" "HOST"
+            enter_value "Port" "$DEFAULT_PORT" "PORT"
+            enter_value "Topic Name" "" "TOPIC_NAME"
+            echo -e "↳ ${CYAN}Output${RESET} ↴"
+            kafka-consumer-groups.sh --bootstrap-server "$HOST:$PORT" --topic $TOPIC_NAME --list
+            ;;
+        "--descgall")
+            process_name "Details of All Consumer Group"
+            enter_value "Host" "$HOST_NODE" "HOST"
+            enter_value "Port" "$DEFAULT_PORT" "PORT"
+            echo -e "↳ ${CYAN}Output${RESET} ↴"
+            kafka-consumer-groups.sh --bootstrap-server "$HOST:$PORT" --all-groups --all-topics --describe
+            ;;
+        "--prod")
+            process_name "Message Producer"
+            enter_value "Host" "$HOST_NODE" "HOST"
+            enter_value "Port" "$DEFAULT_PORT" "PORT"
+            enter_value "Topic Name" "" "TOPIC_NAME"
+            echo -e "↳ ${CYAN}Send Message${RESET} ↴"
+            kafka-console-producer.sh --bootstrap-server "$HOST:$PORT" --topic "$TOPIC_NAME"
+            ;;
+        "--cons")
+            process_name "Message Consumer"
+            enter_value "Host" "$HOST_NODE" "HOST"
+            enter_value "Port" "$DEFAULT_PORT" "PORT"
+
+            counter=0
+            while true; do
+                ((counter++))
+                read -e -p "$(echo -e "${CYAN}Determine the Group Name [y/n]: ${RESET}")" with_group
+                blank_line
+                if [ $counter -eq 3 ]; then
+                    break
+                fi
+
+                if [ $with_group == "y" ]; then
+                    enter_value "Group Name" "" "GROUP_NAME"
+                    enter_value "Topic Name" "" "TOPIC_NAME"
+                    echo -e "↳ ${CYAN}Message${RESET} ↴"
+                    kafka-console-consumer.sh --bootstrap-server "$HOST:$PORT" --group $GROUP_NAME --topic "$TOPIC_NAME" --from-beginning
+                    break
+                elif [ $with_group == "n" ]; then
+                    enter_value "Topic Name" "" "TOPIC_NAME"
+                    echo -e "↳ ${CYAN}Message${RESET} ↴"
+                    kafka-console-consumer.sh --bootstrap-server "$HOST:$PORT" --topic "$TOPIC_NAME" --from-beginning
+                    break
+                else
+                    echo -e "${RED}Invalid input. Please enter 'y' or 'n'.${RESET}"
+                    sleep 1
+                fi
+            done
+            ;;
+        *)
+            echo -e "${RED}Error: Unknown argument: '$1'!${RESET}"
+            exit 1
+            ;;
+    esac
+
+    separator
+}
+
+processor "$1"
