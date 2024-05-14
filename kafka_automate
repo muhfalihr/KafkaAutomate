@@ -4,8 +4,11 @@ if [ $# -eq 0 ]; then
     echo "Usage: $0 [option]"
     echo "Options:"
     echo "  --ctop       Create a new topic"
+    echo "  --desctop    Topic Details"
     echo "  --ltop       List topics"
     echo "  --dtop       Delete a topic"
+    echo "  --lcg        List of Consumer Group"
+    echo "  --descgall   Details of All Consumer Group"
     echo "  --prod       Message producer"
     echo "  --cons       Message consumer"
     exit 1
@@ -15,8 +18,11 @@ if [ "$1" == "--help" ]; then
     echo "Usage: $0 [option]"
     echo "Options:"
     echo "  --ctop       Create a new topic"
+    echo "  --desctop    Topic Details"
     echo "  --ltop       List topics"
     echo "  --dtop       Delete a topic"
+    echo "  --lcg        List of Consumer Group"
+    echo "  --descgall   Details of All Consumer Group"
     echo "  --prod       Message producer"
     echo "  --cons       Message consumer"
     exit 0
@@ -74,6 +80,14 @@ process_name() {
     blank_line
 }
 
+to_uppercase() {
+    echo "$1" | tr '[:lower:]' '[:upper:]'
+}
+
+to_lowercase() {
+    echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 processor() {
     local arg=$1
 
@@ -83,8 +97,41 @@ processor() {
             enter_value "Host" "$HOST_NODE" "HOST"
             enter_value "Port" "$DEFAULT_PORT" "PORT"
             enter_value "Topic Name" "" "TOPIC_NAME"
+
+            counter=0
+            while true; do
+                ((counter++))
+                read -e -p "$(echo -e "${CYAN}Determine the number of partitions [y/n]: ${RESET}")" with_numpar
+                
+                upper=$( to_uppercase "$with_numpar" )
+                lower=$( to_lowercase "$with_numpar" )
+                
+                blank_line
+                if [ $counter -eq 3 ]; then
+                    break
+                fi
+                if [ $lower == "y" ]; then
+                    enter_value "Partition Number" "1" "PART_NUM"
+                    echo -e "↳ ${CYAN}Output${RESET} ↴"
+                    kafka-topics.sh --bootstrap-server "$HOST:$PORT" --create --topic "$TOPIC_NAME" --partitions $PART_NUM
+                    break
+                elif [ $lower == "n" ]; then
+                    echo -e "↳ ${CYAN}Output${RESET} ↴"
+                    kafka-topics.sh --bootstrap-server "$HOST:$PORT" --create --topic "$TOPIC_NAME"
+                    break
+                else
+                    echo -e "${RED}Invalid input. Please enter 'y' or 'n'.${RESET}"
+                    sleep 1
+                fi
+            done
+            ;;
+        "--desctop")
+            process_name "Topic Details"
+            enter_value "Host" "$HOST_NODE" "HOST"
+            enter_value "Port" "$DEFAULT_PORT" "PORT"
+            enter_value "Topic Name" "" "TOPIC_NAME"
             echo -e "↳ ${CYAN}Output${RESET} ↴"
-            kafka-topics.sh --bootstrap-server "$HOST:$PORT" --create --topic "$TOPIC_NAME"
+            kafka-topics.sh --bootstrap-server "$HOST:$PORT" --describe --topic "$TOPIC_NAME"
             ;;
         "--ltop")
             process_name "List of Topics"
@@ -138,18 +185,22 @@ processor() {
             while true; do
                 ((counter++))
                 read -e -p "$(echo -e "${CYAN}Determine the Group Name [y/n]: ${RESET}")" with_group
+                
+                upper=$( to_uppercase "$with_group" )
+                lower=$( to_lowercase "$with_group" )
+
                 blank_line
                 if [ $counter -eq 3 ]; then
                     break
                 fi
 
-                if [ $with_group == "y" ]; then
+                if [ $lower == "y" ]; then
                     enter_value "Group Name" "" "GROUP_NAME"
                     enter_value "Topic Name" "" "TOPIC_NAME"
                     echo -e "↳ ${CYAN}Message${RESET} ↴"
                     kafka-console-consumer.sh --bootstrap-server "$HOST:$PORT" --group $GROUP_NAME --topic "$TOPIC_NAME" --from-beginning
                     break
-                elif [ $with_group == "n" ]; then
+                elif [ $lower == "n" ]; then
                     enter_value "Topic Name" "" "TOPIC_NAME"
                     echo -e "↳ ${CYAN}Message${RESET} ↴"
                     kafka-console-consumer.sh --bootstrap-server "$HOST:$PORT" --topic "$TOPIC_NAME" --from-beginning
