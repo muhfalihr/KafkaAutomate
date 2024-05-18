@@ -220,4 +220,6 @@ processor() {
     separator
 }
 
+figlet "Kafka Automate"
+blank_line
 processor "$1"
