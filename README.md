@@ -137,7 +137,7 @@ For example, to create a new topic:
 kafka_automate --ctop
 ```
 
-![Video Example](https://youtu.be/euke6YCLyes)
+<video src="https://youtu.be/euke6YCLyes" width="640" height="360" controls></video>
 
 ### License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
